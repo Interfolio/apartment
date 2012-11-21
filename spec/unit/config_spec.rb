@@ -42,6 +42,34 @@ describe Apartment do
       expect(Apartment.seed_data_file).to eq(seed_data_file_path)
     end
 
+    it "should set schema_format" do
+      Apartment.configure do |config|
+        config.schema_format = :sql
+      end
+      Apartment.schema_format.should eq(:sql)
+    end
+
+    it "should set database_schema_file" do
+      Apartment.configure do |config|
+        config.database_schema_file = 'a_file'
+      end
+      Apartment.database_schema_file.should eq('a_file')
+    end
+
+    it "should set database_schema_file for :ruby schema format" do
+      Apartment.configure do |config|
+        config.schema_format = :ruby
+      end
+      Apartment.database_schema_file.to_s.should match(/schema.rb/)
+    end
+
+    it "should set database_schema_file for :sql schema format" do
+      Apartment.configure do |config|
+        config.schema_format = :sql
+      end
+      Apartment.database_schema_file.to_s.should match(/structure.sql/)
+    end
+
     it "should set seed_after_create" do
       Apartment.configure do |config|
         config.excluded_models = []
