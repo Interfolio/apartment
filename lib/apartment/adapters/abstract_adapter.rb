@@ -185,9 +185,15 @@ module Apartment
       #   Import the database schema
       #
       def import_database_schema
-        ActiveRecord::Schema.verbose = false    # do not log schema load output.
+        return if Apartment.database_schema_file.nil?
 
-        load_or_raise(Apartment.database_schema_file) if Apartment.database_schema_file
+        ActiveRecord::Schema.verbose = false    # do not log schema load output.
+        if Apartment.schema_format == :sql
+          raise ApartmentError, "Using the :sql schema format is not supported when using Postgres schemas." if Apartment.use_schemas
+          execute_or_abort(Apartment.database_schema_file)
+        else
+          load_or_raise(Apartment.database_schema_file)
+        end
       end
 
       #   Return a new config that is multi-tenanted
@@ -217,6 +223,17 @@ module Apartment
       end
       # Backward compatibility
       alias_method :load_or_abort, :load_or_raise
+
+      #   Load a SQL file and execute it or abort if it doesn't exists
+      #
+      def execute_or_abort(file)
+        if File.exists?(file)
+          structure_sql = open(file, 'r').read
+          ActiveRecord::Base.connection.execute(structure_sql)
+        else
+          abort %{#{file} doesn't exist yet}
+        end
+      end
 
       #   Exceptions to rescue from on db operations
       #
