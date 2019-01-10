@@ -4,7 +4,7 @@ require 'parallel'
 apartment_namespace = namespace :apartment do
 
   desc "Create all tenants"
-  task :create do
+  task create: ['db:load_config'] do
     tenants.each do |tenant|
       begin
         puts("Creating #{tenant} tenant")
@@ -16,7 +16,7 @@ apartment_namespace = namespace :apartment do
   end
 
   desc "Drop all tenants"
-  task :drop do
+  task drop: ['db:load_config', 'db:check_protected_environments'] do
     tenants.each do |tenant|
       begin
         puts("Dropping #{tenant} tenant")
@@ -28,7 +28,7 @@ apartment_namespace = namespace :apartment do
   end
 
   desc "Migrate all tenants"
-  task :migrate do
+  task migrate: [:environment, 'db:load_config'] do
     warn_if_tenants_empty
     each_tenant do |tenant|
       begin
@@ -38,6 +38,7 @@ apartment_namespace = namespace :apartment do
         puts e.message
       end
     end
+    apartment_namespace["_dump"].invoke
   end
 
   desc "Seed all tenants"
@@ -57,7 +58,7 @@ apartment_namespace = namespace :apartment do
   end
 
   desc "Rolls the migration back to the previous version (specify steps w/ STEP=n) across all tenants."
-  task :rollback do
+  task rollback: [:environment, 'db:load_config'] do
     warn_if_tenants_empty
 
     step = ENV['STEP'] ? ENV['STEP'].to_i : 1
@@ -70,11 +71,12 @@ apartment_namespace = namespace :apartment do
         puts e.message
       end
     end
+    apartment_namespace["_dump"].invoke
   end
 
   namespace :migrate do
     desc 'Runs the "up" for a given migration VERSION across all tenants.'
-    task :up do
+    task up: [:environment, 'db:load_config'] do
       warn_if_tenants_empty
 
       version = ENV['VERSION'] ? ENV['VERSION'].to_i : nil
@@ -88,10 +90,11 @@ apartment_namespace = namespace :apartment do
           puts e.message
         end
       end
+      apartment_namespace["_dump"].invoke
     end
 
     desc 'Runs the "down" for a given migration VERSION across all tenants.'
-    task :down do
+    task down: [:environment, 'db:load_config'] do
       warn_if_tenants_empty
 
       version = ENV['VERSION'] ? ENV['VERSION'].to_i : nil
@@ -105,10 +108,11 @@ apartment_namespace = namespace :apartment do
           puts e.message
         end
       end
+      apartment_namespace["_dump"].invoke
     end
 
     desc  'Rolls back the tenant one migration and re migrate up (options: STEP=x, VERSION=x).'
-    task :redo do
+    task redo: [:environment, 'db:load_config'] do
       if ENV['VERSION']
         apartment_namespace['migrate:down'].invoke
         apartment_namespace['migrate:up'].invoke
@@ -117,6 +121,50 @@ apartment_namespace = namespace :apartment do
         apartment_namespace['migrate'].invoke
       end
     end
+  end
+
+  namespace :schema do
+    desc "Creates a `database_schema_file` file that is portable against any DB supported by Active Record"
+    task dump: [:environment, 'db:load_config'] do
+      apartment_namespace["_dump"].invoke
+    end
+  end
+
+  namespace :structure do
+    desc "Dumps the database structure to `database_schema_file`."
+    task dump: [:environment, 'db:load_config'] do
+      apartment_namespace["_dump"].invoke
+    end
+  end
+
+  # IMPORTANT: This task won't dump the schema if ActiveRecord::Base.dump_schema_after_migration is set to false
+  task :_dump do
+    if ActiveRecord::Base.dump_schema_after_migration
+      filename = Rails.root.join(Apartment.database_schema_file).to_s
+      Apartment::Tenant.switch(Apartment.default_tenant_name) do
+        case Apartment.schema_format
+        when :ruby then
+          File.open(filename, 'w:utf-8') do |file|
+            ActiveRecord::SchemaDumper.ignore_tables = Apartment.excluded_models.collect { |m| m.constantize.table_name.split('.').last }
+            ActiveRecord::SchemaDumper.dump(ActiveRecord::Base.connection, file)
+          end
+        when :sql then
+          current_config = ActiveRecord::Base.connection_config.stringify_keys
+          ActiveRecord::Tasks::DatabaseTasks.structure_dump(current_config, filename)
+          if ActiveRecord::SchemaMigration.table_exists?
+            File.open(filename, "a") do |f|
+              f.puts ActiveRecord::Base.connection.dump_schema_information
+              f.print "\n"
+            end
+          end
+        else
+          raise "unknown schema format #{Apartment.schema_format}"
+        end
+      end
+    end
+    # Allow this task to be called as many times as required. An example is the
+    # migrate:redo task, which calls other two internally that depend on this one.
+    apartment_namespace["_dump"].reenable
   end
 
   def each_tenant(&block)

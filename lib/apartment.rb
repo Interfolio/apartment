@@ -11,7 +11,7 @@ module Apartment
     extend Forwardable
 
     ACCESSOR_METHODS  = [:use_schemas, :use_sql, :seed_after_create, :prepend_environment, :append_environment, :with_multi_server_setup]
-    WRITER_METHODS    = [:tenant_names, :database_schema_file, :excluded_models, :default_schema, :persistent_schemas, :connection_class, :tld_length, :db_migrate_tenants, :seed_data_file, :parallel_migration_threads, :pg_excluded_names, :schema_format]
+    WRITER_METHODS    = [:tenant_names, :database_schema_file, :excluded_models, :default_schema, :default_tenant_name, :persistent_schemas, :connection_class, :tld_length, :db_migrate_tenants, :seed_data_file, :parallel_migration_threads, :pg_excluded_names, :schema_format]
 
     attr_accessor(*ACCESSOR_METHODS)
     attr_writer(*WRITER_METHODS)
@@ -82,6 +82,12 @@ module Apartment
           Rails.root.join('db', 'schema.rb')
         end
       end
+    end
+
+    def default_tenant_name
+      return @default_tenant_name if defined?(@default_tenant_name)
+
+      @default_tenant_name = tenant_names.first
     end
 
     def seed_data_file
