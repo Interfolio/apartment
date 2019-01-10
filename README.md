@@ -458,6 +458,18 @@ Enable this option with:
 config.use_sql = true
 ```
 
+#### Alternative: Creating new databases by using structure dumps
+
+Apartment can be forced to use SQL `structure.sql` for creating new schemas. Use this when you are using some extra features in postgres that can't be represented in `schema.rb`, like materialized views etc.
+
+This only applies while using postgres adapter and `config.use_schemas` is set to `false`.
+
+You can configure the `default_tenant_name` to indicate which tenant database to be targed for the structure dump operation, otherwise the first tenant is used.
+
+```ruby
+rake db:structure:dump
+```
+
 ### Managing Migrations
 
 In order to migrate all of your tenants (or postgresql schemas) you need to provide a list
