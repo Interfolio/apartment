@@ -6,7 +6,7 @@ module Apartment
 
     module TASKS
       ENHANCE_BEFORE = %w(db:drop)
-      ENHANCE_AFTER  = %w(db:migrate db:rollback db:migrate:up db:migrate:down db:migrate:redo db:seed)
+      ENHANCE_AFTER  = %w(db:migrate db:rollback db:migrate:up db:migrate:down db:migrate:redo)
       freeze
     end
 
